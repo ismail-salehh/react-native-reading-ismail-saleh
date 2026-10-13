@@ -1,110 +1,134 @@
-# Server state vs UI state
+# Server state vs UI state: two different kinds of data
 
 Introduced here, applied on Day 3.
 
-## The two kinds of state
+The difference isn't which library you use. It's **where the source of truth lives**:
 
-### UI state
+- **UI state**: the source of truth is a value in **this process's memory**, on the Hermes heap (on a Fiber or in a store). Nobody else can change it. Reading it is synchronous, and it is always correct.
+- **Server state**: the source of truth is a **database on another machine**. The app only holds a **copy**, and that copy starts going stale the moment it arrives. Anyone (another user, another device, a cron job) can change the original without the app knowing.
 
-State that exists **only in the app** and that the app fully owns.
+So server state is really a **cache**, with the usual cache problems: deduplication, staleness, invalidation, garbage collection, and retry on failure. `useState` and Redux model none of these.
 
-Examples: is a modal open, which tab is selected, text in a form, selected filter, theme, language.
+## 1. The path a request takes in React Native
 
-- Synchronous and instant.
-- Always up to date, because nobody else can change it.
-- Tools: `useState`, `useReducer`, Context, Redux Toolkit / Zustand.
+`fetch` in React Native is not a browser API. It is a JS polyfill over `XMLHttpRequest`, and RN implements `XMLHttpRequest` on top of a **native Networking module**:
 
-### Server state
-
-Data that **lives on a server** (database, API). The app only holds a **copy** of it.
-
-Examples: list of products, user profile, orders, messages, notifications.
-
-- Asynchronous: it must be fetched, so there is loading and error.
-- Can become **stale**: someone else (another device, another user) may change it any time.
-- Shared: many screens may need the same data.
-- Needs caching, refetching, retries, pagination, invalidation after changes.
-
-## The common mistake
-
-Storing API responses in Redux/Context/`useState` and hand-writing everything around it:
-
-```jsx
-const [products, setProducts] = useState([]);
-const [loading, setLoading] = useState(false);
-const [error, setError] = useState(null);
-
-useEffect(() => {
-  setLoading(true);
-  fetch('/products')
-    .then((r) => r.json())
-    .then(setProducts)
-    .catch(setError)
-    .finally(() => setLoading(false));
-}, []);
+```
+JS thread (Hermes)                          native                          network
+------------------                          ------                          -------
+fetch(url)
+ -> XMLHttpRequest polyfill
+ -> Networking.sendRequest(...)   ------>   iOS:     NSURLSession (RCTNetworking)
+                                            Android: OkHttp                --> HTTP/TLS
+                                            (runs on native threads)
+                                  <------   events: response headers, data chunks, complete
+ -> response.json()
+      JSON.parse(text)                      <- runs on the JS thread
+ -> Promise resolves (microtask)
+ -> setState / cache update -> React render
 ```
 
-Problems with this:
+What follows from this:
 
-- Repeated in every screen.
-- No caching: leaving and returning to the screen refetches (or shows stale data).
-- No retry, no refetch on app focus or reconnect, no deduping of identical requests.
-- Race conditions when params change quickly.
-- Easy to forget to clear or update it after a mutation.
+- **The network wait doesn't block JS.** Sockets, TLS and HTTP are handled on native threads. The JS thread is free while the request is in flight.
+- **Parsing does block JS.** `JSON.parse` of a 2 MB response runs on the JS thread in Hermes. During that time, touches, JS animations and renders all wait. Big payloads should be paginated or trimmed on the server.
+- **Results arrive as events at unpredictable times.** Two requests sent in order A, B can resolve in order B, A.
 
-## The better approach
+## 2. Why the hand-written `useEffect` fetch breaks
 
-Treat server state as its own category and use a library built for it: **TanStack Query** (React Query) or RTK Query.
+The usual pattern is `useState` for data, loading and error, plus a `fetch` in `useEffect`. Here is what goes wrong at the engine level:
 
-```jsx
-import { useQuery } from '@tanstack/react-query';
+- **Race conditions.** Each effect run creates a new closure that will call `setProducts` when *its* request resolves. Change the filter quickly from `a` to `b`, and if `a`'s response arrives last, the screen shows `a`'s data under the `b` filter.
+- **No shared cache.** The data lives in **that component's hook list**. A second screen that needs the same list starts its own request and gets a separate copy, so the two can disagree.
+- **Lifetime tied to the Fiber.** Pop the screen and the fiber is deleted along with the data. Navigate back and you get a spinner again.
+- **No idea of "stale".** Once loaded, the data is treated as true forever. Nothing refetches it when the app comes back from the background or the network returns.
+- **No dedupe or retry.** Three components mounting together make three identical requests, and a flaky mobile connection fails once and stays failed.
 
-function ProductsScreen() {
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => fetch('/products').then((r) => r.json()),
-  });
+## 3. How TanStack Query models a cache
 
-  if (isLoading) return <ActivityIndicator />;
-  if (error) return <Text>Something went wrong</Text>;
-  return <FlatList data={data} renderItem={...} />;
-}
+TanStack Query is a cache engine that lives **outside React**, much like a Redux store. React subscribes to it.
+
+```
+QueryClient
+  └─ QueryCache: Map<queryHash, Query>
+        └─ Query  (one per unique key)
+             state: { data, error, status, fetchStatus, dataUpdatedAt, ... }
+             promise / retryer      (the in-flight request, if any)
+             observers: QueryObserver[]
+             gcTimeout              (removal timer)
+
+useQuery(...)  ->  one QueryObserver per component  ->  useSyncExternalStore
 ```
 
-The library gives you caching, background refetching, retries, dedupe, pagination, and mutations with cache invalidation, with no store code written by you.
+### Keys and hashing
 
-## Splitting responsibilities
+`queryKey: ['products', { filter: 'all' }]` is turned into a string by **`hashKey`**, which is `JSON.stringify` with object keys **sorted**. So `{a, b}` and `{b, a}` produce the same hash. The hash is the cache's address. Any component asking for the same key gets the **same `Query` object**. That makes the key the identity of the data, and UI state such as a filter belongs in it.
+
+### Deduplication
+
+`query.fetch()` checks whether a promise is already in flight. If one is, it returns **that same promise** and doesn't start another request. Ten components mounting together produce one network request.
+
+### Freshness: `staleTime` and `gcTime`
+
+Each `Query` moves through these states:
+
+```
+fetch succeeds -> FRESH --(staleTime passes, default 0)--> STALE
+STALE + trigger (new observer mounts / app focus / reconnect / invalidate) -> background refetch
+last observer unsubscribes -> INACTIVE -> start gcTimeout (gcTime, default 5 min) -> removed from cache
+new observer before the timer fires -> timer cleared, cached data returned instantly
+```
+
+- With the default `staleTime: 0`, data is stale as soon as it arrives. It is still **shown** right away, then refetched in the background on the next trigger. This is **stale-while-revalidate**.
+- `status` (`pending` / `error` / `success`) describes **whether there is data**. `fetchStatus` (`fetching` / `paused` / `idle`) describes **whether a request is running right now**. They are separate, which is how "show cached data and refetch in the background" works.
+
+### Retries
+
+A failed `queryFn` goes through a **retryer**. By default it makes 3 retries with exponential backoff: `min(1000 * 2^attempt, 30000)` ms. If the device is offline, the retryer **pauses** (`fetchStatus: 'paused'`) instead of failing, and continues when connectivity returns.
+
+### Structural sharing
+
+When a refetch returns, the new JSON is merged with the old data through **`replaceEqualDeep`**. Every subtree that is deeply equal to the old one keeps the **old reference**. If one product out of 50 changed, only that product object and the array are new. `React.memo` rows for the other 49 see identical props and skip rendering.
+
+### Tracked properties
+
+The result object from `useQuery` defines its fields as **getters** and records which ones your component actually reads. The observer only notifies your component when **those** fields change. A component that reads only `data` doesn't re-render when `isFetching` flips.
+
+## 4. "Focus" and "online" mean different things on mobile
+
+TanStack Query refetches on **window focus** and **reconnect**. Its default detectors use browser APIs: `window` `visibilitychange` and `online`/`offline` events. React Native has no DOM `window` events, so out of the box **these triggers never fire on a phone.**
+
+You connect them to the native signals:
+
+- **Focus**: RN's `AppState` module reports `active` / `background` / `inactive`, based on the iOS `UIApplication` lifecycle and Android `Activity` lifecycle. Feed it to `focusManager.setFocused(...)`.
+- **Online**: `@react-native-community/netinfo` reads `NWPathMonitor` on iOS and `ConnectivityManager` on Android. Feed it to `onlineManager.setOnline(...)`.
+
+After that, the cache behaves like a mobile user expects. Coming back to the app shows the last data instantly and refreshes quietly. Losing signal pauses requests instead of showing errors.
+
+## 5. Writes: mutations and invalidation
+
+The client can't edit the source of truth directly. It can only **ask the server** and then **resync its copy**:
+
+1. `useMutation` sends the request. It also has a lifecycle (`pending`, `success`, `error`) but isn't cached by key.
+2. On success, `queryClient.invalidateQueries({ queryKey: ['products'] })` marks every matching `Query` stale. The ones with active observers refetch immediately, and inactive ones refetch the next time they're used.
+3. **Optimistic updates** write the expected result into the cache first with `setQueryData`, then roll back if the server rejects it. The cache can briefly show a guess about the server's state, but the guess is always reconciled.
+
+## 6. Side-by-side
 
 | | UI state | Server state |
 |---|---|---|
-| Owner | The app | The server |
-| Can be stale | No | Yes |
-| Async | No | Yes |
-| Tool | useState, Context, Redux/Zustand | TanStack Query / RTK Query |
-| Example | `isModalOpen`, `selectedTab` | `products`, `user profile` |
+| Source of truth | This process's memory | A remote database |
+| What the app holds | The real value | A copy (cache entry) |
+| Can be stale | Never | Always, eventually |
+| Read | Synchronous | Async: network (native threads) + parse (JS thread) |
+| Identity | Fiber position / store path | Hashed query key |
+| Lifetime | Fiber or JS runtime | Until `gcTime` after the last observer leaves |
+| Tool | `useState`, Context, Redux/Zustand | TanStack Query / RTK Query |
 
-A typical screen uses both: server state for the list, UI state for the search text and selected filter.
-
-```jsx
-const [filter, setFilter] = useState('all');              // UI state
-const { data } = useQuery({                               // server state
-  queryKey: ['products', filter],
-  queryFn: () => fetchProducts(filter),
-});
-```
-
-Notice the UI state (`filter`) becomes part of the query key, so the data refetches and caches per filter automatically.
-
-## React Native specifics
-
-- Mobile connections are unreliable: caching and retries matter a lot. Users expect to see the last known data instantly, then a refresh.
-- Refetch when the app returns to the foreground (`AppState`) and when the network reconnects (`NetInfo`). TanStack Query supports both via `focusManager` and `onlineManager`.
-- Screens stay mounted in navigation stacks, so use the cache instead of passing fetched objects through navigation params.
-- Pull to refresh maps directly to `refetch` and `isRefetching`.
+A screen usually uses both, connected through the key. UI state (`filter`) **chooses which cache entry** you're looking at: `['products', filter]`.
 
 ## Rule of thumb
 
-If it came from an API, it is server state. Don't copy it into Redux or Context.
-If the user created it in the UI and the server doesn't know about it, it is UI state.
+If the authoritative copy lives on a server, you're managing a **cache**, so use a cache engine. If the authoritative copy lives in this app's memory, it's UI state, and `useState` or a store is the right tool.
 
 Day 3 applies this by fetching real data with TanStack Query.
