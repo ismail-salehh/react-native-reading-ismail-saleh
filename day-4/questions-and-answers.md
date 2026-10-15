@@ -81,597 +81,588 @@ What is used, for which feature, in plain words. Vague strings ("Camera access r
 **25. Where do capabilities like Push Notifications or Associated Domains go?**
 In the `.entitlements` file via Xcode's Signing & Capabilities, not in `Info.plist`.
 
-**26. How do you set `Info.plist` strings in Expo?**
-`ios.infoPlist` in `app.json` or a library's config plugin; `expo prebuild` writes them.
-
-**27. Why use `react-native-permissions` over `PermissionsAndroid`?**
+**26. Why use `react-native-permissions` over `PermissionsAndroid`?**
 One API for both platforms, unified states, and it hides many Android version checks.
 
-**28. Why include only the iOS permission modules you use in `react-native-permissions`?**
+**27. Why include only the iOS permission modules you use in `react-native-permissions`?**
 Apple rejects apps that link permission APIs they never use.
 
-**29. What can happen to your app when the user changes a permission in Android Settings?**
+**28. What can happen to your app when the user changes a permission in Android Settings?**
 The process may be restarted, so in-memory state is lost.
 
 ---
 
 ## Camera, location, photos, microphone, Bluetooth, background
 
-**30. Why turn the camera off (`isActive={false}`) when not focused?**
+**29. Why turn the camera off (`isActive={false}`) when not focused?**
 It drains battery and keeps the camera indicator on.
 
-**31. When don't you need a custom camera screen?**
+**30. When don't you need a custom camera screen?**
 When you only need to take a photo: use a picker's `launchCamera`.
 
-**32. Foreground vs background location — which should you ask for?**
+**31. Foreground vs background location — which should you ask for?**
 Foreground ("While using") for almost everything. Background is strictly reviewed and needs a real reason (navigation, fitness).
 
-**33. What is approximate location and how do you design for it?**
+**32. What is approximate location and how do you design for it?**
 Since iOS 14 / Android 12 the user can give only a rough position. A store finder works with it; turn-by-turn doesn't.
 
-**34. What must you do after `watchPosition`?**
+**33. What must you do after `watchPosition`?**
 `clearWatch` when done, or the GPS keeps running.
 
-**35. Besides the permission, what else can block location or Bluetooth?**
+**34. Besides the permission, what else can block location or Bluetooth?**
 The service being turned off for the whole device.
 
-**36. What is the best way to let users pick photos?**
+**35. What is the best way to let users pick photos?**
 The system photo picker. On Android 13+ and with iOS `PHPickerViewController`, it needs no library permission at all.
 
-**37. When do you need full photo-library access?**
+**36. When do you need full photo-library access?**
 Only if the app browses the library itself (gallery app, custom grid).
 
-**38. When is the microphone permission needed besides voice recording?**
+**37. When is the microphone permission needed besides voice recording?**
 Any video recording with sound.
 
-**39. What does Bluetooth need on Android 12+ vs 11 and lower?**
+**38. What does Bluetooth need on Android 12+ vs 11 and lower?**
 12+: `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT`. 11 and lower: `ACCESS_FINE_LOCATION`.
 
-**40. Local vs push notifications?**
+**39. Local vs push notifications?**
 Local: created by the app on the device (timers, reminders). Push: sent by a server through APNs/FCM.
 
-**41. What is an Android notification channel?**
+**40. What is an Android notification channel?**
 Since Android 8, each notification belongs to a channel ("Orders", "Promotions"). Users can disable channels individually; importance is per channel.
 
-**42. What happens to JS when an app goes to the background?**
+**41. What happens to JS when an app goes to the background?**
 The OS suspends it soon after; JS stops running.
 
-**43. How do you run continuous background work (music, navigation) on Android?**
+**42. How do you run continuous background work (music, navigation) on Android?**
 A foreground service with a visible notification (and a declared type since Android 14).
 
-**44. Can you rely on iOS `BGTaskScheduler` timing?**
+**43. Can you rely on iOS `BGTaskScheduler` timing?**
 No — the OS decides when, maybe never. Force-quit apps get no background time.
 
-**45. What should you do if something must happen at an exact time?**
+**44. What should you do if something must happen at an exact time?**
 Let the server do it and send a push.
 
 ---
 
 ## Native packages
 
-**46. How do you tell a package has native code?**
+**45. How do you tell a package has native code?**
 It has `ios/`, `android/`, a `.podspec`, or docs that say "pod install" / "rebuild".
 
-**47. What are the steps after installing a native package?**
+**46. What are the steps after installing a native package?**
 `npm install`, `cd ios && pod install`, then rebuild the app (`run-ios` / `run-android`), plus any library-specific setup.
 
-**48. What is autolinking?**
+**47. What is autolinking?**
 At build time, the CLI scans `node_modules` for native packages and adds them to the Podfile and Gradle build automatically (RN 0.60+).
 
-**49. Why isn't a Metro reload enough after installing a native package?**
+**48. Why isn't a Metro reload enough after installing a native package?**
 Metro only sends JS. Native code is compiled into the binary, so a rebuild is required.
 
-**50. What does "TurboModuleRegistry... could not be found" / "Native module cannot be null" usually mean?**
+**49. What does "TurboModuleRegistry... could not be found" / "Native module cannot be null" usually mean?**
 You didn't run `pod install` and rebuild.
 
-**51. What's the troubleshooting order when it still fails?**
+**50. What's the troubleshooting order when it still fails?**
 Metro `--reset-cache` → `pod install` (delete `Pods`/`Podfile.lock` if needed) → `./gradlew clean` → check library supports your RN version and New Architecture → re-read install docs.
-
-**52. Can a library with custom native code run in Expo Go?**
-No. Use a development build (`expo run:*` or EAS).
-
-**53. Why use `npx expo install` instead of `npm install`?**
-It picks the version compatible with your Expo SDK.
 
 ---
 
 ## Firebase and FCM
 
-**54. Why do most RN apps use FCM for iOS too?**
+**51. Why do most RN apps use FCM for iOS too?**
 One setup for both; FCM forwards to APNs on iOS.
 
-**55. What must match when registering apps in Firebase?**
+**52. What must match when registering apps in Firebase?**
 Android package name = `applicationId`; iOS bundle ID = Xcode's bundle ID.
 
-**56. Where do the config files go?**
+**53. Where do the config files go?**
 `google-services.json` in `android/app/`. `GoogleService-Info.plist` added through Xcode into the app target (copying into the folder isn't enough).
 
-**57. Is `google-services.json` a secret?**
+**54. Is `google-services.json` a secret?**
 No, it ships in every APK. The backend's **service account key** is the secret and must never be in the app.
 
-**58. What causes "No matching client found for package name"?**
+**55. What causes "No matching client found for package name"?**
 The `package_name` in `google-services.json` doesn't match `applicationId`.
 
-**59. How do you handle dev and prod Firebase projects?**
-Android flavors (`src/<flavor>/google-services.json`), iOS schemes with a copy script, or Expo `googleServicesFile` chosen by env var.
+**56. How do you handle dev and prod Firebase projects?**
+Android flavors (`src/<flavor>/google-services.json`), or iOS schemes with a build-phase script that copies the right plist.
 
-**60. What is the FCM registration token?**
+**57. What is the FCM registration token?**
 An address for this app installation on this device. The backend uses it to send pushes.
 
-**61. Does the app send pushes itself?**
+**58. Does the app send pushes itself?**
 No. It gets the token and sends it to the backend; the backend sends via FCM.
 
-**62. When does the token change?**
+**59. When does the token change?**
 Reinstall, data cleared, restore on a new device, FCM rotation, `deleteToken()`.
 
-**63. How do you keep the backend's token current?**
+**60. How do you keep the backend's token current?**
 Listen to `onTokenRefresh`, and call `getToken()` on every app start after login, sending it if it changed.
 
-**64. Does the token identify the user?**
+**61. Does the token identify the user?**
 No, the installation. The backend links token → user at login.
 
-**65. What do you do with the token on logout?**
+**62. What do you do with the token on logout?**
 Tell the backend to unlink it, then `deleteToken()`, so the next user doesn't get the previous user's pushes.
 
-**66. Can a user have several tokens?**
+**63. Can a user have several tokens?**
 Yes (phone, tablet). The backend sends to all.
 
-**67. What should the backend do when FCM returns `UNREGISTERED`?**
+**64. What should the backend do when FCM returns `UNREGISTERED`?**
 Delete that token — the app was uninstalled.
 
-**68. What emulator is needed to test FCM on Android?**
+**65. What emulator is needed to test FCM on Android?**
 One with Google Play services.
 
 ---
 
 ## Notifications: permission, app states, taps
 
-**69. What changed in Android 13 for notifications?**
+**66. What changed in Android 13 for notifications?**
 `POST_NOTIFICATIONS` runtime permission. Without it notifications are silently not shown.
 
-**70. Does an app upgraded from an older version lose notifications on Android 13?**
+**67. Does an app upgraded from an older version lose notifications on Android 13?**
 No, the permission is pre-granted on upgrade. New installs start without it.
 
-**71. Does `messaging().requestPermission()` show the Android 13 prompt?**
+**68. Does `messaging().requestPermission()` show the Android 13 prompt?**
 No, it's for iOS. Use `PermissionsAndroid` or `requestNotifications()` from react-native-permissions.
 
-**72. Even with permission, what can still hide notifications?**
+**69. Even with permission, what can still hide notifications?**
 A disabled channel, the app turned off in Settings, Do Not Disturb, battery savers.
 
-**73. What are the three app states?**
+**70. What are the three app states?**
 Foreground (on screen), background (process alive, maybe suspended), killed (no process).
 
-**74. Notification message vs data-only message?**
+**71. Notification message vs data-only message?**
 Notification message has `notification` and is shown by the OS when not in foreground. Data-only has only `data` and is shown by nobody — your code decides.
 
-**75. What happens to a notification message in the foreground?**
+**72. What happens to a notification message in the foreground?**
 Not shown automatically. `onMessage` fires and you display it yourself (e.g. Notifee) or show a toast / refetch.
 
-**76. Where must `setBackgroundMessageHandler` be registered and why?**
+**73. Where must `setBackgroundMessageHandler` be registered and why?**
 In `index.js`, outside React, before `registerComponent`. When killed, the OS starts JS only to run this handler; there's no component tree.
 
-**77. Rules for the background handler?**
+**74. Rules for the background handler?**
 No UI, no React state, no navigation, keep it short (a few seconds).
 
-**78. What iOS limits apply to data-only messages?**
+**75. What iOS limits apply to data-only messages?**
 Need `content-available: 1`, are throttled, and aren't delivered at all if the user force-quit the app.
 
-**79. Which message type should you send for things the user must see?**
+**76. Which message type should you send for things the user must see?**
 A notification message (with `data` for where to go). Data-only is for silent updates that may be dropped.
 
-**80. What type must `data` values be?**
+**77. What type must `data` values be?**
 Strings.
 
-**81. How do you detect a notification tap in each state?**
+**78. How do you detect a notification tap in each state?**
 Killed: `getInitialNotification()`. Background: `onNotificationOpenedApp()`. Foreground (Notifee-displayed): `notifee.onForegroundEvent` with `EventType.PRESS`.
 
-**82. What should a notification's `data` carry?**
+**79. What should a notification's `data` carry?**
 An id or a link, not the actual data. Fetch fresh data on the screen.
 
-**83. How do you navigate from outside a screen?**
+**80. How do you navigate from outside a screen?**
 `navigationRef` from `createNavigationContainerRef()`, passed to `NavigationContainer`.
 
-**84. Common tap-handling pitfalls?**
+**81. Common tap-handling pitfalls?**
 Navigating before the navigator is ready, user not logged in yet, handling the initial notification twice, trusting `data` without validation.
 
 ---
 
 ## APNs
 
-**85. Does every iOS push go through APNs?**
+**82. Does every iOS push go through APNs?**
 Yes. FCM is just a middleman that forwards to APNs.
 
-**86. Android pushes work but iOS ones never arrive. First thing to check?**
+**83. Android pushes work but iOS ones never arrive. First thing to check?**
 APNs setup: `.p8` key uploaded to Firebase, Push Notifications and Background Modes → Remote notifications capabilities.
 
-**87. `.p8` key vs `.p12` certificate?**
+**84. `.p8` key vs `.p12` certificate?**
 `.p8`: one key for all apps and both environments, never expires, downloadable once. `.p12`: per app, expires yearly.
 
-**88. What are the two tokens on iOS?**
+**85. What are the two tokens on iOS?**
 APNs device token (Apple's address) and the FCM token (what your backend uses). With FCM you only use the FCM token.
 
-**89. Sandbox vs production APNs?**
+**86. Sandbox vs production APNs?**
 Sandbox for Xcode development builds, production for TestFlight/App Store. Tokens don't cross environments — a common "works in dev, not TestFlight" cause when sending directly.
 
-**90. What do `content-available` and `mutable-content` do?**
+**87. What do `content-available` and `mutable-content` do?**
 `content-available: 1` wakes the app silently (throttled). `mutable-content: 1` lets a Notification Service Extension modify it (images, decryption).
 
-**91. Is a paid Apple Developer account needed for push?**
+**88. Is a paid Apple Developer account needed for push?**
 Yes.
 
 ---
 
 ## Deep links
 
-**92. Two kinds of deep links?**
+**89. Two kinds of deep links?**
 Custom URL scheme (`myapp://...`) and verified https links (App Links on Android, Universal Links on iOS).
 
-**93. Problems with custom schemes?**
+**90. Problems with custom schemes?**
 Any app can claim them, no fallback if the app isn't installed, often not clickable in email/chat.
 
-**94. When are custom schemes still fine?**
+**91. When are custom schemes still fine?**
 OAuth redirects, links between your own apps, testing.
 
-**95. What does `launchMode="singleTask"` do?**
+**92. What does `launchMode="singleTask"` do?**
 A link opens the existing app instance instead of a second copy.
 
-**96. How does Android verify an App Link?**
+**93. How does Android verify an App Link?**
 `autoVerify="true"` intent filter + `/.well-known/assetlinks.json` with the package name and signing certificate SHA-256.
 
-**97. Which fingerprint goes in `assetlinks.json` with Play App Signing?**
+**94. Which fingerprint goes in `assetlinks.json` with Play App Signing?**
 Google's app signing key (from Play Console), not your upload key. Add the debug key for debug builds.
 
-**98. What happens if App Link verification fails?**
+**95. What happens if App Link verification fails?**
 Android shows an "Open with" chooser or opens the browser.
 
-**99. What two pieces do Universal Links need?**
+**96. What two pieces do Universal Links need?**
 The Associated Domains capability (`applinks:example.com`) and an AASA file at `/.well-known/apple-app-site-association`.
 
-**100. AASA file rules?**
+**97. AASA file rules?**
 No `.json` extension, HTTPS with a valid cert, `application/json`, no redirects. `appIDs` = `TEAMID.bundle.id`.
 
-**101. Why doesn't typing a Universal Link in Safari open the app?**
+**98. Why doesn't typing a Universal Link in Safari open the app?**
 Universal Links only trigger on taps, and usually not for same-domain links.
 
-**102. Why might AASA changes not show up?**
+**99. Why might AASA changes not show up?**
 Apple caches it via its CDN; iOS fetches at install. Use `?mode=developer` and reinstall.
 
-**103. How do you test deep links?**
+**100. How do you test deep links?**
 `adb shell am start -a android.intent.action.VIEW -d "<url>"`, `xcrun simctl openurl booted "<url>"`, or `npx uri-scheme open`.
 
 ---
 
 ## React Navigation linking
 
-**104. What do `prefixes` and `screens` do?**
+**101. What do `prefixes` and `screens` do?**
 `prefixes` strip the scheme/domain; `screens` maps path patterns to screen names.
 
-**105. What type are URL params?**
+**102. What type are URL params?**
 Always strings. Use `parse` (e.g. `{ id: Number }`) and `stringify`.
 
-**106. How do you handle unknown paths?**
+**103. How do you handle unknown paths?**
 A `'*'` catch-all route (e.g. `NotFound`).
 
-**107. How must the config be structured with nested navigators?**
+**104. How must the config be structured with nested navigators?**
 It mirrors the navigator tree with nested `screens` objects.
 
-**108. How do you get a back button after a deep link opens a detail screen directly?**
+**105. How do you get a back button after a deep link opens a detail screen directly?**
 Set `initialRouteName` in the config so a screen sits underneath.
 
-**109. How do you navigate by URL from inside the app?**
+**106. How do you navigate by URL from inside the app?**
 `useLinkTo()` → `linkTo('/products/42')`.
 
-**110. Why treat every URL param as untrusted?**
+**107. Why treat every URL param as untrusted?**
 Anyone can craft a URL. Screens must handle invalid params without crashing.
 
 ---
 
 ## Deep link app states
 
-**111. How does JS get the URL on cold start vs when running?**
+**108. How does JS get the URL on cold start vs when running?**
 Cold start: `Linking.getInitialURL()` (ask once). Running: `Linking.addEventListener('url')` (event).
 
-**112. What's the classic deep link bug?**
+**109. What's the classic deep link bug?**
 Handling only one of the two, so links work cold or warm but not both.
 
-**113. Does React Navigation's `linking` handle both?**
+**110. Does React Navigation's `linking` handle both?**
 Yes: initial URL builds the initial state; the listener navigates while running.
 
-**114. What's different about each state?**
+**111. What's different about each state?**
 Cold start: auth state may not be known yet. Background: preserve the user's place, push on top. Already open: user may be on the target screen — `navigate` updates it, `push` duplicates.
 
-**115. Why call `getInitialURL()` only once?**
+**112. Why call `getInitialURL()` only once?**
 On Android it can return the old launch URL again after the app is resumed.
 
-**116. How many cases should you test per link?**
+**113. How many cases should you test per link?**
 Six: killed / background / foreground × logged in / logged out.
 
 ---
 
 ## Auth links
 
-**117. Why is a link to a protected screen lost when logged out?**
+**114. Why is a link to a protected screen lost when logged out?**
 With conditional auth stacks, the protected screen doesn't exist in the navigator.
 
-**118. How do you fix it?**
+**115. How do you fix it?**
 Save the pending URL (in `getInitialURL`/`subscribe`), and after login call `Linking.openURL(pendingUrl)`.
 
-**119. Why keep the splash screen until auth state is known?**
+**116. Why keep the splash screen until auth state is known?**
 Otherwise on cold start every link looks like "logged out" while the token is still being read from the Keychain.
 
-**120. Rules for links carrying tokens (reset password, magic link)?**
+**117. Rules for links carrying tokens (reset password, magic link)?**
 Use verified https links, not custom schemes. Tokens are short-lived and single-use. Exchange immediately, then navigate with `reset` so the token isn't kept in state. Don't log the URL. Handle "expired" clearly. The website must handle the same link.
 
-**121. How should OAuth login be done?**
+**118. How should OAuth login be done?**
 System browser (`ASWebAuthenticationSession` / Custom Tabs), not a WebView, with PKCE. Exclude the redirect from your linking config.
 
-**122. What does PKCE protect against?**
+**119. What does PKCE protect against?**
 A stolen redirect `code` is useless without the `code_verifier`.
 
 ---
 
 ## Deep linking from notifications
 
-**123. Why route notification taps through the linking config?**
+**120. Why route notification taps through the linking config?**
 One navigation path for links, emails and notifications: same parsing, auth handling, nested navigators, not-found handling.
 
-**124. How do you wire it up?**
+**121. How do you wire it up?**
 Payload has `data.link`. In `getInitialURL`: fall back to `getInitialNotification()`. In `subscribe`: add `onNotificationOpenedApp`. Foreground Notifee taps: `Linking.openURL(link)`.
 
 ---
 
 ## JS thread vs UI thread
 
-**125. What runs on each thread?**
+**122. What runs on each thread?**
 UI thread: native views, drawing, scrolling, touches. JS thread: React renders, state, handlers, logic.
 
-**126. What does the user see when each is blocked?**
+**123. What does the user see when each is blocked?**
 UI blocked: whole app freezes, ANR. JS blocked: taps don't respond, JS animations stop, but native scrolling continues.
 
-**127. What's the frame budget?**
+**124. What's the frame budget?**
 ~16.7 ms at 60 FPS (8.3 ms at 120 Hz). 200 ms of JS work drops ~12 frames.
 
-**128. How do you tell which thread is the problem?**
+**125. How do you tell which thread is the problem?**
 Perf Monitor: JS FPS dropping = slow JS; UI FPS dropping = heavy native work (big images, too many views).
 
-**129. Why measure in a release build?**
+**126. Why measure in a release build?**
 Dev mode is much slower (checks, unoptimized bundle).
 
-**130. How do you keep animations smooth when JS is busy?**
+**127. How do you keep animations smooth when JS is busy?**
 `useNativeDriver: true` (transform/opacity only), Reanimated worklets, Gesture Handler.
 
-**131. Does the New Architecture let you block the JS thread?**
+**128. Does the New Architecture let you block the JS thread?**
 No. The thread model is the same.
 
 ---
 
 ## Re-renders and lists
 
-**132. When is a re-render actually a problem?**
+**129. When is a re-render actually a problem?**
 When many components re-render often (every list row on every keystroke).
 
-**133. Common causes of unnecessary re-renders?**
+**130. Common causes of unnecessary re-renders?**
 State too high up, new inline objects/functions to memoized children, one big context, selecting the whole store.
 
-**134. How do you find them?**
+**131. How do you find them?**
 React DevTools "Highlight updates" and the Profiler. Measure before adding `memo`.
 
-**135. Why not `ScrollView` + `.map()` for long lists?**
+**132. Why not `ScrollView` + `.map()` for long lists?**
 It renders every item at once. `FlatList` renders only items near the screen.
 
-**136. Key FlatList props?**
+**133. Key FlatList props?**
 `keyExtractor`, `getItemLayout` (fixed heights), `initialNumToRender`, `maxToRenderPerBatch`, `windowSize`, `removeClippedSubviews`.
 
-**137. How do you keep list rows cheap?**
+**134. How do you keep list rows cheap?**
 `React.memo` rows, memoized `renderItem` and handlers, no formatting in render, small images.
 
-**138. What does FlashList do differently, and what's the catch?**
+**135. What does FlashList do differently, and what's the catch?**
 Recycles row views. Local row state can appear in another item — key it to the item or lift it up.
 
 ---
 
 ## Images
 
-**139. How much memory does a decoded image use?**
+**136. How much memory does a decoded image use?**
 width × height × 4 bytes. A 4000×3000 photo = 48 MB regardless of a 3 MB file size.
 
-**140. Best fix for heavy images?**
+**137. Best fix for heavy images?**
 Get the right size from the server (CDN `?w=`), using `PixelRatio.getPixelSizeForLayoutSize`, in WebP/AVIF.
 
-**141. Which image component should you use?**
-`expo-image` (caching, placeholders, blurhash). `react-native-fast-image` is unmaintained.
+**138. Which image component should you use?**
+A caching one like `@d11/react-native-fast-image` (maintained fork). The original `react-native-fast-image` is unmaintained.
 
-**142. How is lazy loading done in lists?**
+**139. How is lazy loading done in lists?**
 Virtualization handles it. Add placeholders and always give images a fixed size or aspect ratio.
 
-**143. What is `Image.prefetch` for?**
+**140. What is `Image.prefetch` for?**
 Loading images the user will see next (e.g. the detail image on tap).
 
 ---
 
 ## Debounce and throttle
 
-**144. Debounce vs throttle?**
+**141. Debounce vs throttle?**
 Debounce: run once after events stop for N ms ("wait until done"). Throttle: at most once per N ms ("not more often than this").
 
-**145. Which for search-as-you-type? For scroll?**
+**142. Which for search-as-you-type? For scroll?**
 Search: debounce. Scroll/drag: throttle.
 
-**146. In a search screen, what is debounced — the input or the query?**
+**143. In a search screen, what is debounced — the input or the query?**
 Only the query. The input updates on every key so typing feels instant.
 
-**147. Why does `debounce()` inside a component body not work?**
+**144. Why does `debounce()` inside a component body not work?**
 A new debounced function every render. Wrap in `useMemo`/`useRef` and `.cancel()` on unmount.
 
-**148. Should you throttle scroll values that drive an animation?**
+**145. Should you throttle scroll values that drive an animation?**
 No. Use `Animated.event` with native driver or Reanimated's `useAnimatedScrollHandler`.
 
-**149. Best way to prevent a double "Pay" tap?**
+**146. Best way to prevent a double "Pay" tap?**
 Disable the button while the request is pending.
 
-**150. Typical delays?**
+**147. Typical delays?**
 Search 250–500 ms, autosave 1–2 s, scroll logic 100–200 ms.
 
 ---
 
 ## Memory leaks
 
-**151. What is a memory leak in JS?**
+**148. What is a memory leak in JS?**
 A long-lived thing (global listener, timer, module variable) holding a reference that should have been released.
 
-**152. Most common RN leaks?**
+**149. Most common RN leaks?**
 Listeners not removed, timers not cleared, sockets/subscriptions not closed, caches that only grow, deep stacks of mounted screens.
 
-**153. What should every subscribing `useEffect` do?**
+**150. What should every subscribing `useEffect` do?**
 Return a cleanup that undoes it (`sub.remove()`, `clearInterval`, `unsubscribe()`).
 
-**154. Do screens below the current one in a stack stay mounted?**
+**151. Do screens below the current one in a stack stay mounted?**
 Yes. Use `navigate` instead of `push` when a new copy isn't needed.
 
-**155. Is "setState on unmounted component" a real leak?**
+**152. Is "setState on unmounted component" a real leak?**
 Usually not; React 18 removed the warning. Still cancel requests to avoid wasted work.
 
-**156. How do you find leaks?**
+**153. How do you find leaks?**
 Repeat a flow 10–20 times and compare heap snapshots. Memory that keeps stepping up = leak; growing then dropping = normal GC.
 
 ---
 
 ## Hermes
 
-**157. What is Hermes?**
+**154. What is Hermes?**
 Meta's JS engine for RN, default since 0.70.
 
-**158. Main idea of Hermes?**
+**155. Main idea of Hermes?**
 Compiles JS to bytecode at build time, so the phone skips parsing/compiling at launch.
 
-**159. Benefits?**
+**156. Benefits?**
 Faster startup, lower memory, smaller app, same engine on both platforms.
 
-**160. Trade-off?**
+**157. Trade-off?**
 No JIT — long CPU-heavy loops can be slower. Rarely matters on mobile.
 
-**161. Why upload source maps for release builds?**
+**158. Why upload source maps for release builds?**
 Hermes crash traces point to bytecode offsets; source maps translate them back.
 
-**162. How does Hermes relate to the New Architecture?**
+**159. How does Hermes relate to the New Architecture?**
 Separate things, but Hermes implements JSI, which the New Architecture is built on.
 
 ---
 
 ## Old vs New Architecture
 
-**163. How did the old architecture work?**
+**160. How did the old architecture work?**
 The bridge: async, batched, JSON-serialized messages through one queue.
 
-**164. Problems with the bridge?**
+**161. Problems with the bridge?**
 Always async, serialization cost, single bottleneck, all native modules loaded at startup, no type safety.
 
-**165. What is JSI?**
+**162. What is JSI?**
 A C++ API letting JS and native hold references and call each other directly, synchronously if needed. (Bridge = letters; JSI = phone call.)
 
-**166. What is Fabric?**
+**163. What is Fabric?**
 The new renderer in shared C++. Uses JSI, supports synchronous layout and React concurrent features. The old one was Paper.
 
-**167. What are TurboModules?**
+**164. What are TurboModules?**
 New native modules called through JSI: typed, optionally sync, and lazy-loaded.
 
-**168. What is Codegen?**
+**165. What is Codegen?**
 Generates the JS↔native glue from a typed TS spec. A mismatch fails the build instead of crashing at runtime.
 
-**169. What is bridgeless mode?**
+**166. What is bridgeless mode?**
 The bridge is fully removed; everything goes through JSI. Old libraries work via an interop layer.
 
-**170. When did the New Architecture become default / mandatory?**
+**167. When did the New Architecture become default / mandatory?**
 Default in 0.76; the old one can't be enabled since 0.82.
 
-**171. Explain old vs new in one sentence.**
+**168. Explain old vs new in one sentence.**
 Old: JS and native sent serialized messages through one async queue. New: they call each other directly through JSI — Fabric for rendering, TurboModules for native APIs, Codegen for types, and no bridge.
 
-**172. Why is the New Architecture faster?**
+**169. Why is the New Architecture faster?**
 No serialization, sync calls when needed (no layout jumps), no single bottleneck, lazy modules (faster startup), concurrent rendering (`startTransition`) keeping input responsive.
 
-**173. What doesn't it fix?**
+**170. What doesn't it fix?**
 Re-renders, huge images, heavy JS loops, leaks. Slow code is still slow.
 
 ---
 
 ## Release build and Play Store
 
-**174. APK vs AAB?**
+**171. APK vs AAB?**
 APK installs directly. AAB is the Play publishing format; Play generates optimized per-device APKs. AAB is required for new Play apps.
 
-**175. Upload key vs app signing key?**
+**172. Upload key vs app signing key?**
 You sign with the upload key; Google re-signs with the app signing key it keeps. A lost upload key can be reset.
 
-**176. Where should keystore passwords live?**
+**173. Where should keystore passwords live?**
 `~/.gradle/gradle.properties` or CI secrets — never in git. Back up the keystore.
 
-**177. Most common signing mistake in the default template?**
+**174. Most common signing mistake in the default template?**
 Release builds are signed with the debug key. Point `release` to `signingConfigs.release`.
 
-**178. What must increase on every upload?**
+**175. What must increase on every upload?**
 `versionCode`.
 
-**179. How do you build the AAB?**
+**176. How do you build the AAB?**
 `cd android && ./gradlew bundleRelease`.
 
-**180. How do you test a release build?**
+**177. How do you test a release build?**
 `npx react-native run-android --mode release`, or `bundletool` to install the exact AAB.
 
-**181. Things that break only in release?**
+**178. Things that break only in release?**
 `http://` blocked, R8/ProGuard stripping classes, wrong env/API URL, `__DEV__` code skipped, missing assets, SHA-checked services (Google sign-in, App Links, Firebase) without the right fingerprints.
 
-**182. What are the Play testing tracks?**
+**179. What are the Play testing tracks?**
 Internal (≤100, minutes, no full review) → closed → open → production (optionally staged).
 
-**183. Why test through Play instead of sending an APK?**
+**180. Why test through Play instead of sending an APK?**
 Play-signed APKs (so SHA-checked features behave like production), real update path, pre-launch report, vitals.
 
-**184. What can never change after the first upload?**
+**181. What can never change after the first upload?**
 The package name.
 
-**185. What requirement do new personal developer accounts have?**
+**182. What requirement do new personal developer accounts have?**
 A closed test with at least 12 testers for 14 days before production.
 
-**186. iOS equivalent of internal testing?**
+**183. iOS equivalent of internal testing?**
 TestFlight.
 
 ---
 
 ## Reanimated and Gesture Handler
 
-**187. Main idea of Reanimated?**
+**184. Main idea of Reanimated?**
 Animation code runs on the UI thread, so it stays smooth while JS is busy.
 
-**188. When do you need Reanimated vs plain `Animated`?**
+**185. When do you need Reanimated vs plain `Animated`?**
 Reanimated for gestures, scroll-driven or complex animations. Simple fades: `Animated` with native driver or layout animations.
 
-**189. What is a worklet?**
+**186. What is a worklet?**
 A JS function that runs on the UI thread. Can't use React state directly; call back with `scheduleOnRN` (v4) / `runOnJS` (v3).
 
-**190. The three building blocks?**
+**187. The three building blocks?**
 `useSharedValue` (doesn't re-render), `useAnimatedStyle`, `Animated.View`.
 
-**191. Common animation functions?**
+**188. Common animation functions?**
 `withTiming`, `withSpring`, `withDecay`, `withDelay`, `withSequence`, `withRepeat`.
 
-**192. What are layout animations?**
+**189. What are layout animations?**
 `entering`/`exiting`/`layout` props for mount, unmount and move — no shared values needed.
 
-**193. Which properties should you animate?**
+**190. Which properties should you animate?**
 `transform` and `opacity`. `width`/`height`/`top` trigger layout every frame.
 
-**194. Installation gotcha?**
+**191. Installation gotcha?**
 The Babel plugin must be last; rebuild and `--reset-cache`. Reanimated 4 requires the New Architecture.
 
-**195. Why Gesture Handler over `onPress`/`PanResponder`?**
+**192. Why Gesture Handler over `onPress`/`PanResponder`?**
 Gestures are recognized natively on the UI thread, can be composed, and with Reanimated the whole interaction skips JS.
 
-**196. What setup is required?**
+**193. What setup is required?**
 Wrap the root in `GestureHandlerRootView`. Android `Modal` needs its own.
 
-**197. How do you build and attach a gesture?**
+**194. How do you build and attach a gesture?**
 `Gesture.Pan()...` with callbacks (`onStart`, `onUpdate`, `onEnd`), wrapped in `<GestureDetector gesture={...}>`.
 
-**198. `Simultaneous` vs `Exclusive` vs `Race`?**
+**195. `Simultaneous` vs `Exclusive` vs `Race`?**
 Simultaneous: both active (pinch + rotate). Exclusive: first has priority, second waits for it to fail (double vs single tap). Race: first to activate wins (pan vs long press).
